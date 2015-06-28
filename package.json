@@ -1,5 +1,5 @@
 {
-  "name": "comic_cloud_lambda_processor",
+  "name": "Comic Cloud Lambda Function",
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
