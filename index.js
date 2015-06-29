@@ -12,10 +12,29 @@ require('pro-array');
 var orm = require("orm");
 require('dotenv').load();
 
-orm.connect("mysql://" + process.env.AWS_DB_USER + ":" + process.env.AWS_DB_PASS  + "@" + process.env.AWS_DB_HOST  + "/" + process.env.AWS_DB_DATABASE , function (err, db) {
-  if (err) throw err;
-  console.log(db);
+
+var mysql      = require('mysql');
+
+var connection = mysql.createConnection({
+  host     : process.env.AWS_DB_HOST,
+  database : process.env.AWS_DB_DATABASE,
+  user     : process.env.AWS_DB_USER,
+  password : process.env.AWS_DB_PASS
 });
+ 
+connection.connect();
+ 
+connection.query('SELECT * FROM comic_book_archives', function(err, rows, fields) {
+  if (err) throw err;
+ 
+  console.log(rows);
+});
+ 
+connection.end();
+
+/*orm.connect("mysql://" + process.env.AWS_DB_USER + ":" + process.env.AWS_DB_PASS  + "@" + process.env.AWS_DB_HOST  + "/" + process.env.AWS_DB_DATABASE , function (err, db) {
+  if (err) throw err;
+});*/
 
 
 exports.handler = function(event, context) {
