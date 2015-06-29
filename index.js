@@ -4,15 +4,18 @@
 console.log('Loading function');
 var aws = require('aws-sdk');
 var s3 = new aws.S3();//{apiVersion: '2006-03-01'});
-var fs = require('fs');
 var JSZip = require("jszip");
 var path = require("path");
-var mkdirp = require('mkdirp');
 var uuid = require('uuid');
-var getFileType = require('file-type');
-var path = require('path');
-//var rar = require('node-rar');
+var getFileType = require('file-type');//TODO: Remove?
 require('pro-array');
+var orm = require("orm");
+require('dotenv').load();
+
+orm.connect("mysql://" + process.env.AWS_DB_USER + ":" + process.env.AWS_DB_PASS  + "@" + process.env.AWS_DB_HOST  + "/" + process.env.AWS_DB_DATABASE , function (err, db) {
+  if (err) throw err;
+  console.log(db);
+});
 
 
 exports.handler = function(event, context) {
@@ -23,7 +26,7 @@ exports.handler = function(event, context) {
         if (err) {
             console.log("Error getting object " + user_upload_key + " from bucket " + user_upload_bucket +
             ".\nMake sure they exist and your bucket is in the same region as this function.");
-            context.fail('Error', "Error getting file: " + err);
+            context.fail("Error getting file: " + JSON.stringify(err));
         } else {
             console.log("Successfully retrieved data " + user_upload_bucket + "/" +user_upload_key);
             var zip = new JSZip(data.Body);//Load archive into JSZip
@@ -52,18 +55,17 @@ exports.handler = function(event, context) {
                     Key: user_images_uploads_key,
                     Body: user_images_uploads_body
                 };
-                //console.log(user_images_uploads_key);
+
                 s3.putObject(params, function(err, data) {
                     if (err) {
                         console.log("Error putting object " + user_images_uploads_key + " into bucket " + user_images_uploads +
                         ".\nMake sure they exist and your bucket is in the same region as this function.");
-                        context.fail('Error', "Error getting file: " + err);
+                        context.fail("Error getting file: " + JSON.stringify(err));
                     } else {
                         console.log("Successfully uploaded data to " + user_images_uploads + "/" +user_images_uploads_key);
                     }
                 });
-                //console.log(path.basename(filename, "." + fileType.ext));
-                //pages[user_images_uploads_key] = filename;
+
                 pages[basename] = user_images_uploads_key;
 
             });
@@ -78,7 +80,7 @@ exports.handler = function(event, context) {
             delete pages_final[0];
             pages_final = pages_final.toObject();
             console.log(JSON.stringify(pages_final));
-            //context.succeed();
+            context.succeed();
         }
     });
 }

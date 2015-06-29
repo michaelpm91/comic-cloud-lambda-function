@@ -4,9 +4,9 @@
   },
   "object": {
     "file_name*" : "nested.zip",
-    "file_name*" : "Archive.zip",
+    "file_name" : "Archive.zip",
     "file_name*" : "CvxYCgCtfXG1Cr4B0FiYbokFoMMQsbX6dXTf9zug.cbz",
-    "file_name" : "b0165f8e-4b39-48c2-a3e6-281b88b6de81.cbz",
+    "file_name*" : "b0165f8e-4b39-48c2-a3e6-281b88b6de81.cbz",
     "file_key" : ""
   }
 }
