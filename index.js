@@ -10,7 +10,9 @@ var path = require("path");
 var mkdirp = require('mkdirp');
 var uuid = require('uuid');
 var getFileType = require('file-type');
+var path = require('path');
 //var rar = require('node-rar');
+require('pro-array');
 
 
 exports.handler = function(event, context) {
@@ -29,18 +31,21 @@ exports.handler = function(event, context) {
             var pages = [];
 
             Object.keys(zip.files).forEach(function(filename) {
-                //console.log('file name:' + filename);
+
+                var fileExt = path.extname(filename).split('.').join('');
                 var fileType = getFileType(zip.files[filename].asNodeBuffer());
+                var basename = path.basename(filename, path.extname(filename));
+
                 var acceptedExtensions = ['jpg', 'jpeg'];
                 if(filename.substr(-1) === "/" ){
                     console.log('Directory found.'); return;
                 }
-                if(acceptedExtensions.indexOf(fileType.ext.toLowerCase()) == -1){
-                    console.log('Unaccepted File type \'' + fileType.ext + '\' found.'); return;
+                if(!acceptedExtensions.hasObject(fileExt)){
+                    console.log('Unaccepted File type \'' + fileExt + '\' found.'); return;
                 }
 
                 var user_images_uploads = 'comicclouddevelopimages';
-                var user_images_uploads_key = uuid.v4() + "." + fileType.ext;
+                var user_images_uploads_key = uuid.v4() + "." + fileExt;
                 var user_images_uploads_body = zip.files[filename].asNodeBuffer();
                 var params = {
                     Bucket: user_images_uploads,
@@ -57,11 +62,48 @@ exports.handler = function(event, context) {
                         console.log("Successfully uploaded data to " + user_images_uploads + "/" +user_images_uploads_key);
                     }
                 });
-
-                pages[image_slug] = $file;
+                //console.log(path.basename(filename, "." + fileType.ext));
+                //pages[user_images_uploads_key] = filename;
+                pages[basename] = user_images_uploads_key;
 
             });
+
+            pages.natsort();
+            var pages_final = [];
+            for (var items in pages){
+                pages_final.push(pages[items]);
+            }
+
+            pages_final.unshift('presentation_value');
+            delete pages_final[0];
+            pages_final = pages_final.toObject();
+            console.log(JSON.stringify(pages_final));
             //context.succeed();
         }
     });
 }
+
+Array.prototype.hasObject = (
+    !Array.indexOf ? function (o)
+    {
+        var l = this.length + 1;
+        while (l -= 1)
+        {
+            if (this[l - 1] === o)
+            {
+                return true;
+            }
+        }
+        return false;
+    } : function (o)
+    {
+        return (this.indexOf(o) !== -1);
+    }
+);
+Array.prototype.toObject = function(){
+    var arr = this;
+    var rv = {};
+    for (var i = 0; i < arr.length; ++i)
+        rv[i] = arr[i];
+    return rv;
+};
