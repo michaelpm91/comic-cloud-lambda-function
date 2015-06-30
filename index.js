@@ -70,7 +70,7 @@ exports.handler = function(event, context) {
                 var image_id = "";
 
                 connection.query('SELECT * FROM comic_images WHERE image_hash = ? LIMIT 1', fileHash, function(err, result) {
-                    if (err) throw err;
+                    if (err) context.fail("Database Error: " + JSON.stringify(err).red);
                     else if(result.length > 0) {
                         image_id = result[0].id;
                         user_images_uploads_key = result[0].image_slug + "." + fileExt;
@@ -85,7 +85,7 @@ exports.handler = function(event, context) {
                         };
                         //Entry into Pivot Table
                         connection.query('INSERT INTO comic_book_archive_comic_image SET ?', pivot_entry , function(err, result) {
-                            if (err) throw err;
+                            if (err) context.fail("Database Error: " + JSON.stringify(err).red);
                             //console.log(result);
                             console.log('New Comic Book Archive/Comic Image Pivot Entry: ' + JSON.stringify(pivot_entry));
                         });
@@ -118,7 +118,7 @@ exports.handler = function(event, context) {
                                 };
 
                                 connection.query('INSERT INTO comic_images SET ?', image_data, function(err, result) {
-                                    if (err) throw err;
+                                    if (err) context.fail("Database Error: " + JSON.stringify(err).red);
                                     //console.log(result);
                                     console.log('New Comic Image Entry: ' + JSON.stringify(image_data));
                                     image_id = result.insertId;
@@ -132,7 +132,7 @@ exports.handler = function(event, context) {
                                     };
                                     //Entry into Pivot Table
                                     connection.query('INSERT INTO comic_book_archive_comic_image SET ?', pivot_entry , function(err, result) {
-                                        if (err) throw err;
+                                        if (err) context.fail("Database Error: " + JSON.stringify(err).red);
                                         //console.log(result);
                                         console.log('New Comic Book Archive/Comic Image Pivot Entry: ' + JSON.stringify(pivot_entry));
                                     });
@@ -152,6 +152,8 @@ exports.handler = function(event, context) {
 
             });
 
+
+            console.log('ready to sort!'.green);
             pages.natsort();
             var pages_final = [];
             for (var items in pages){
