@@ -15,6 +15,8 @@ var orm = require("orm");
 require('dotenv').load();
 var fs = require('fs');
 var colors = require('colors');
+var moment = require('moment');
+
 
 exports.handler = function(event, context) {
     console.log( "Running index.handler" );
@@ -24,10 +26,10 @@ exports.handler = function(event, context) {
     s3.getObject({Bucket: user_upload_bucket, Key: user_upload_key}, function(err, data) {//Retrieve Upload
         if (err) {
             console.log("Error getting object " + user_upload_key + " from bucket " + user_upload_bucket +
-            ".\nMake sure they exist and your bucket is in the same region as this function.");
-            context.fail("Error getting file: " + JSON.stringify(err));
+            ".\nMake sure they exist and your bucket is in the same region as this function.".red);
+            context.fail("Error getting file: " + JSON.stringify(err).red);
         } else {
-            console.log("Successfully retrieved data " + user_upload_bucket + "/" +user_upload_key);
+            console.log("Successfully retrieved data " + user_upload_bucket + "/" +user_upload_key + "".green);
 
             var connection = mysql.createConnection({
                 host     : process.env.AWS_DB_HOST,
@@ -36,13 +38,11 @@ exports.handler = function(event, context) {
                 password : process.env.AWS_DB_PASS
             });
 
-            //DB Image Write
-            connection.connect();//TODO: Move this Up
+            connection.connect();//DB Connect
 
             var zip = new JSZip(data.Body);//Load archive into JSZip
 
             var pages = [];
-
 
             Object.keys(zip.files).forEach(function(filename) {
 
@@ -72,64 +72,81 @@ exports.handler = function(event, context) {
                 connection.query('SELECT * FROM comic_images WHERE image_hash = ? LIMIT 1', fileHash, function(err, result) {
                     if (err) throw err;
                     else if(result.length > 0) {
-                        //console.log(result.length);
-                        //context.fail();
-                        console.log(JSON.stringify(result).green);
-                        //console.log(result[0].id);
                         image_id = result[0].id;
                         user_images_uploads_key = result[0].image_slug + "." + fileExt;
-                        console.log('image exists');
+                        console.log('Image Found');
                         image_exists = true;
+
+                        var pivot_entry = {
+                            comic_book_archive_id : cba_id,
+                            comic_image_id : image_id,
+                            created_at : moment().format('YYYY-MM-DD HH:mm:ss'),
+                            updated_at : moment().format('YYYY-MM-DD HH:mm:ss')
+                        };
+                        //Entry into Pivot Table
+                        connection.query('INSERT INTO comic_book_archive_comic_image SET ?', pivot_entry , function(err, result) {
+                            if (err) throw err;
+                            //console.log(result);
+                            console.log('New Comic Book Archive/Comic Image Pivot Entry: ' + JSON.stringify(pivot_entry));
+                        });
+
+                    }else {
+                        console.log("Image Not Found");
+
+                        var params = {
+                            Bucket: user_images_uploads,
+                            Key: user_images_uploads_key,
+                            Body: user_images_uploads_body
+                        };
+
+                        s3.putObject(params, function(err, data) {
+                            if (err) {
+                                console.log("Error putting object " + user_images_uploads_key + " into bucket " + user_images_uploads +
+                                ".\nMake sure they exist and your bucket is in the same region as this function.");
+                                context.fail("Error getting file: " + JSON.stringify(err));
+                            } else {
+                                console.log("Successfully uploaded data to " + user_images_uploads + "/" +user_images_uploads_key);
+
+
+                                var image_data = {
+                                    image_slug : user_images_uploads_key_without_ext,
+                                    image_hash : fileHash,
+                                    image_size : 1,//fileSize
+                                    created_at : moment().format('YYYY-MM-DD HH:mm:ss'),
+                                    updated_at : moment().format('YYYY-MM-DD HH:mm:ss')
+
+                                };
+
+                                connection.query('INSERT INTO comic_images SET ?', image_data, function(err, result) {
+                                    if (err) throw err;
+                                    //console.log(result);
+                                    console.log('New Comic Image Entry: ' + JSON.stringify(image_data));
+                                    image_id = result.insertId;
+
+
+                                    var pivot_entry = {
+                                        comic_book_archive_id : cba_id,
+                                        comic_image_id : image_id,
+                                        created_at : moment().format('YYYY-MM-DD HH:mm:ss'),
+                                        updated_at : moment().format('YYYY-MM-DD HH:mm:ss')
+                                    };
+                                    //Entry into Pivot Table
+                                    connection.query('INSERT INTO comic_book_archive_comic_image SET ?', pivot_entry , function(err, result) {
+                                        if (err) throw err;
+                                        //console.log(result);
+                                        console.log('New Comic Book Archive/Comic Image Pivot Entry: ' + JSON.stringify(pivot_entry));
+                                    });
+                                });
+
+                                //connection.end();//TODO: Move this down
+
+                            }
+
+                        });
+
                     }
+
                 });
-
-                var params = {
-                    Bucket: user_images_uploads,
-                    Key: user_images_uploads_key,
-                    Body: user_images_uploads_body
-                };
-
-                if(!image_exists){
-                    s3.putObject(params, function(err, data) {
-                        if (err) {
-                            console.log("Error putting object " + user_images_uploads_key + " into bucket " + user_images_uploads +
-                            ".\nMake sure they exist and your bucket is in the same region as this function.");
-                            context.fail("Error getting file: " + JSON.stringify(err));
-                        } else {
-                            console.log("Successfully uploaded data to " + user_images_uploads + "/" +user_images_uploads_key);
-
-
-                            var image_data = {
-                                image_slug : user_images_uploads_key_without_ext,
-                                image_hash : fileHash,
-                                image_size : 1//fileSize
-                            };
-                            
-                            connection.query('INSERT INTO comic_images SET ?', image_data, function(err, result) {
-                                if (err) throw err;
-                                //console.log(result);
-                                console.log('New Comic Image Entry: ' + JSON.stringify(image_data));
-                                image_id = result.insertId;
-                            });
-
-
-                            //connection.end();//TODO: Move this down
-                        }
-                    });
-                }
-
-                var pivot_entry = {
-                    comic_book_archive_id : cba_id,
-                    comic_image_id : image_id
-                };
-                console.log( pivot_entry );
-                //Entry into Pivot Table
-                connection.query('INSERT INTO comic_book_archive_comic_image SET ?', pivot_entry , function(err, result) {
-                    if (err) throw err;
-                    //console.log(result);
-                    console.log('New Comic Book Archive/Comic Image Pivot Entry: ' + JSON.stringify(pivot_entry));
-                });
-
 
                 pages[basename] = user_images_uploads_key;
 
