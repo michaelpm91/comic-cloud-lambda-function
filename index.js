@@ -14,32 +14,7 @@ require('pro-array');
 var orm = require("orm");
 require('dotenv').load();
 var fs = require('fs');
-
-
-
-/*var mysql      = require('mysql');
-
-var connection = mysql.createConnection({
-  host     : process.env.AWS_DB_HOST,
-  database : process.env.AWS_DB_DATABASE,
-  user     : process.env.AWS_DB_USER,
-  password : process.env.AWS_DB_PASS
-});
- 
-connection.connect();
- 
-connection.query('SELECT * FROM comic_book_archives', function(err, rows, fields) {
-  if (err) throw err;
- 
-  console.log(rows);
-});
- 
-connection.end();*/
-
-/*orm.connect("mysql://" + process.env.AWS_DB_USER + ":" + process.env.AWS_DB_PASS  + "@" + process.env.AWS_DB_HOST  + "/" + process.env.AWS_DB_DATABASE , function (err, db) {
-  if (err) throw err;
-});*/
-
+var colors = require('colors');
 
 exports.handler = function(event, context) {
     console.log( "Running index.handler" );
@@ -83,9 +58,6 @@ exports.handler = function(event, context) {
                 var basename = path.basename(filename, path.extname(filename));
                 var fileSize = 1;//TODO: File size check.
 
-                console.log(fileSize);
-
-
                 var user_images_uploads = 'comicclouddevelopimages';
                 var user_images_uploads_key_without_ext = uuid.v4();
                 var user_images_uploads_key = user_images_uploads_key_without_ext + "." + fileExt;
@@ -93,15 +65,19 @@ exports.handler = function(event, context) {
 
                 var fileHash = crypto.createHash('md5').update(user_images_uploads_body).digest('hex');
 
+                connection.query('SELECT * FROM comic_images WHERE image_hash = ? LIMIT 1', fileHash, function(err, result) {
+                    if (err) throw err;
+                    if(result) {
+                        console.log(JSON.stringify(result).green);
+                        console.log(result[0].id);
+                    }
+                });
 
                 var params = {
                     Bucket: user_images_uploads,
                     Key: user_images_uploads_key,
                     Body: user_images_uploads_body
                 };
-
-                //console.log(zip.files[filename].name);
-                //context.succeed();
 
 
                 s3.putObject(params, function(err, data) {
