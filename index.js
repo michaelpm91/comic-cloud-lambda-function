@@ -23,9 +23,18 @@ var async = require('async');
 exports.handler = function(event, context) {
 
     console.log( "Running index.handler" );
-    var user_upload_bucket = event.bucket.name;
-    var user_upload_key = event.object.file_name;
-    var cba_id = event.comic_cloud_meta.cba_id;
+    var user_upload_bucket = event.bucket_name;
+    var user_upload_key = event.file_name;
+    var cba_id = event.cba_id;
+
+    if(!user_upload_bucket || !user_upload_key || !cba_id){
+        context.fail((
+            "Missing Parameter.\n" +
+            "Bucket: " + user_upload_bucket + "\n" +
+            "Key: " + user_upload_key + "\n" +
+            "CBA ID: " + cba_id + "\n"
+        ).red);
+    }
 
     var result = null;
 
@@ -56,7 +65,8 @@ exports.handler = function(event, context) {
                         console.log("Processing file: ".green + filename.blue);
 
                         if(filename.substr(-1) === "/" ){
-                            console.log('Directory found.'); return;
+                            console.log('Directory found.');
+                            return callback();
                         }
 
                         var fileExt = path.extname(filename).split('.').join('');
@@ -64,7 +74,8 @@ exports.handler = function(event, context) {
                         var acceptedExtensions = ['jpg', 'jpeg'];
 
                         if(!acceptedExtensions.hasObject(fileExt)){
-                            console.log('Unaccepted File type \'' + fileExt + '\' found.'); return;
+                            console.log('Unaccepted File type \'' + fileExt + '\' found.');
+                            return callback();
                         }
                         var fileType = getFileType(file.asNodeBuffer());
                         var basename = path.basename(filename, path.extname(filename));
@@ -170,7 +181,7 @@ exports.handler = function(event, context) {
 
                             }
                         ], function(err, result){
-                            pages[basename] = user_images_uploads_key;
+                            pages[basename] = user_images_uploads_key_without_ext;
                             callback();
                         });
 
@@ -178,14 +189,12 @@ exports.handler = function(event, context) {
                         callback(null, pages);
                     });
 
-
                 }
             });
         },//end of first
         function(pages, callback){//second
+            console.log('Ready to sort.'.rainbow);
 
-
-            console.log('ready to sort!'.rainbow);
             pages.natsort();
             var pages_final = [];
             for (var items in pages){
@@ -195,15 +204,25 @@ exports.handler = function(event, context) {
             pages_final.unshift('presentation_value');
             delete pages_final[0];
             pages_final = pages_final.toObject();
-            console.log(JSON.stringify(pages_final));
 
-            //context.succeed('Comic Book Archive successfully processed.'.green);
+            //console.log(JSON.stringify(pages_final));
 
-            callback();
+            connection.query('UPDATE `comic_book_archives` SET `comic_book_archive_contents` = ? WHERE `id` = ?', [JSON.stringify(pages_final), cba_id], function(err, result) {
+                if (err) context.fail(("Database Error: " + JSON.stringify(err)).red);
+                console.log(("JSON Successfully written to comic_book_archives.comic_book_archive.id " + cba_id + ": ").green + JSON.stringify(pages_final).blue);
+
+                connection.query('UPDATE `comics` SET `comic_book_archive_contents` = ? , `comic_status` = 1 WHERE `comic_book_archive_id` = ?',[JSON.stringify(pages_final), cba_id], function (err, result) {
+                    if (err) context.fail(("Database Error: " + JSON.stringify(err)).blue);
+                    console.log(("JSON Successfully written to comics.comic_book_archive_id " + cba_id + ": ").green + JSON.stringify(pages_final).blue);
+                    callback();
+                });
+            });//TODO: This will need to alter laravel's cache somehow... *sigh*
+
         }//end of second
     ],
     function(err, results){
-        //connection.end();
+        connection.end();
+        context.succeed('Comic Book Archive successfully processed.'.green);
 
     });
 
