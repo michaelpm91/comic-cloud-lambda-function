@@ -23,7 +23,7 @@ exports.handler = function(event, context) {
 
     console.log( "Running index.handler" );
 
-    var user_upload_bucket = event.bucket_name;
+    var user_upload_bucket = process.env.AWS_S3_Uploads;//event.bucket_name;//TODO:Change this back before posting!
     var user_upload_key = event.file_name;
     var cba_id = event.cba_id;
 
@@ -37,11 +37,23 @@ exports.handler = function(event, context) {
                     ".\nMake sure they exist and your bucket is in the same region as this function.".red);
                     context.fail("Error getting file: " + JSON.stringify(err).red);
                 } else {
-                    callback();
+                    console.log('File successfully retrieved.');
+                    callback(data);
                 }
             });
         },
-        function(callback){
+        function(data, callback){
+            console.log('Beginning Unzip');
+
+            var zip = new JSZip(data.Body);//Load archive into JSZip
+
+            var pages = [];
+
+            async.forEachOf(zip.files, function (file, filename, callback) {
+                console.log("Processing file: ".green + filename.blue);
+                callback();
+            });
+            callback();
 
         },
         function(callback) {//# - Authorise
