@@ -14,16 +14,21 @@ var crypto = require('crypto');
 var uuid = require('uuid');
 var fs = require('fs');
 
+
 var settings = {
-    auth_endpoint : "http://api.local.comiccloud.io/v0.1/oauth/access_token",
+    endpoints : {
+        auth : "http://api.local.comiccloud.io/v0.1/oauth/access_token",
+        images : "http://api.local.comiccloud.io/v0.1/images"
+    },
     param: {
-        grant_type : "client_credentials",
+        grant_type : "client_credentials",//TODO: Move to environment variables
         client_id : "test_processor_id",
         client_secret : "test_processor_secret",
         scope: "processor"
     },
     access_token : null
-}
+};
+
 exports.handler = function(event, context) {
 
     console.log( "Running index.handler" );
@@ -36,7 +41,7 @@ exports.handler = function(event, context) {
         function(callback) {//1 - Authorise
             console.log("Authenticating Client".green);
 
-            request.post(settings.auth_endpoint, {form: settings.param}, function (error, response, body) {//TODO: This should eventually be a JSON raw body not a form
+            request.post(settings.endpoints.auth , {form: settings.param}, function (error, response, body) {//TODO: This should eventually be a JSON raw body not a form
                 body = JSON.parse(body);
                 if (!error && response.statusCode == 200) {
                     settings.access_token = body.access_token;
@@ -67,31 +72,26 @@ exports.handler = function(event, context) {
 
             var pages = [];
 
-            //fs.writeFile("zip.json", JSON.stringify(zip));
             async.forEachOf(zip.files, function (file, filename, callback) {
-                console.log(JSON.stringify(file._data));
                 console.log("Processing file: ".green + filename.blue);
-                //if(filename.substr(-1) === "/" ){
                 if(file.dir === true){
                     console.log('Directory found.');
                     return callback();
                 }
-                //fs.writeFile(filename+"_log.json", JSON.stringify(file));
 
                 var fileExt = path.extname(filename).split('.').join('');
-
                 var acceptedExtensions = ['jpg', 'jpeg'];
 
                 if(!acceptedExtensions.hasObject(fileExt)){
                     console.log('Unaccepted File type \'' + fileExt + '\' found.');
                     return callback();
                 }
+
                 var fileType = getFileType(file.asNodeBuffer());
                 var basename = path.basename(filename, path.extname(filename));
-                var fileSize = file._data.uncompressedSize;//TODO: File size check.
-                console.log(fileSize);
+                var fileSize = 1;//TODO: File size check.
 
-                var user_images_uploads = 'comicclouddevelopimages';
+                var user_images_uploads = process.env.AWS_S3_Images;
                 var user_images_uploads_key_without_ext = uuid.v4();
                 var user_images_uploads_key = user_images_uploads_key_without_ext + "." + fileExt;
                 var user_images_uploads_body = file.asNodeBuffer();
@@ -102,8 +102,15 @@ exports.handler = function(event, context) {
                 var image_id = "";
 
                 async.waterfall([
-                    function(callback){
-                        // do some stuff ...
+                    function(callback){//Check if image exists
+                        request.get(settings.endpoints.images + "?image_hash=" + fileHash, { headers : {'Authorization' : settings.access_token}}, function (error, response, body) {
+                            //console.log(error);
+                            //console.log(body);
+                            var response = JSON.parse(body);
+                            //console.log(fileHash);
+                            console.log(response.total);
+                        });
+
                     }
                 ], function(err, result){
                     //pages[basename] = user_images_uploads_key_without_ext;
