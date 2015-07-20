@@ -18,7 +18,8 @@ var fs = require('fs');
 var settings = {
     endpoints : {
         auth : "http://api.local.comiccloud.io/v0.1/oauth/access_token",
-        images : "http://api.local.comiccloud.io/v0.1/images"
+        images : "http://api.local.comiccloud.io/v0.1/images",
+        s3_base : "https://s3.amazonaws.com"
     },
     param: {
         grant_type : "client_credentials",//TODO: Move to environment variables
@@ -104,16 +105,68 @@ exports.handler = function(event, context) {
                 async.waterfall([
                     function(callback){//Check if image exists
                         request.get(settings.endpoints.images + "?image_hash=" + fileHash, { headers : {'Authorization' : settings.access_token}}, function (error, response, body) {
-                            //console.log(error);
-                            //console.log(body);
-                            var response = JSON.parse(body);
-                            //console.log(fileHash);
-                            console.log(response.total);
+                            if (error) {
+                                console.log("Error getting object " + user_upload_key + " from bucket " + user_upload_bucket +
+                                ".\nMake sure they exist and your bucket is in the same region as this function.".red);
+                                context.fail("Error getting file: " + JSON.stringify(err).red);
+                            }else {
+                                callback(null, JSON.parse(body))
+                            }
                         });
+
+                    },
+                    function(response, callback){
+                        if(response.total == 0){//Post Image to Storage
+
+                            console.log("Image Match Not Found".blue);
+
+                            var params = {
+                                Bucket: user_images_uploads,
+                                Key: user_images_uploads_key,
+                                Body: user_images_uploads_body,
+                                ACL: 'public-read' //TODO: Change to 'authenticated-read' on production. Also maybe extract to variable
+                            };
+
+                            s3.putObject(params, function(err, data) {
+                                if (err) {
+                                    console.log(("Error putting object " + user_images_uploads_key + " into bucket " + user_images_uploads +
+                                    ".\nMake sure they exist and your bucket is in the same region as this function.").red);
+                                    context.fail(("Error getting file: " + JSON.stringify(err)).red);
+                                } else {
+                                    console.log("Image successfully uploaded".green);
+
+                                    var upload_url = settings.endpoints.s3_base + "/"+ user_images_uploads + "/" +user_images_uploads_key; //TODO: This ideally needs to something returned from S3's upload
+                                    var new_image_request = {
+                                        "image_slug" : user_images_uploads_key_without_ext,
+                                        "image_hash" : fileHash,
+                                        "image_url" : upload_url,
+                                        "image_size" : 1,
+                                        "related_comic_book_archive_id" : cba_id
+                                    };
+                                    request.post(settings.endpoints.images , {body : new_image_request, json : true, headers : {'Authorization' : settings.access_token}}, function (error, response, body) {//TODO: This should eventually be a JSON raw body not a form
+                                        console.log(error);
+                                        console.log(body);
+                                        callback();
+                                    });
+
+                                }
+
+                            });
+
+                        }else{
+                            /*console.log('Image Match Found'.green);
+                            dupe_image = response.images[0];
+
+                            image_exists = true;
+
+
+                            callback(null, pivot_entry);*/
+                            callback();
+                        }
+
 
                     }
                 ], function(err, result){
-                    //pages[basename] = user_images_uploads_key_without_ext;
                     callback();
                 });
             }, function(err){
