@@ -19,6 +19,7 @@ var settings = {
     endpoints : {
         auth : "http://api.local.comiccloud.io/v0.1/oauth/access_token",
         images : "http://api.local.comiccloud.io/v0.1/images",
+        cba : "http://api.local.comiccloud.io/v0.1/comicbookarchives",
         s3_base : "https://s3.amazonaws.com"
     },
     param: {
@@ -118,7 +119,7 @@ exports.handler = function(event, context) {
                     function(response, callback){
                         if(response.total == 0){//Post Image to Storage
 
-                            console.log("Image Match Not Found".blue);
+                            console.log("Image Match Not Found".green);
 
                             var params = {
                                 Bucket: user_images_uploads,
@@ -154,13 +155,13 @@ exports.handler = function(event, context) {
                             });
 
                         }else{
-                            /*console.log('Image Match Found'.green);
-                            dupe_image = response.images[0];
-
-                            image_exists = true;
-
-
-                            callback(null, pivot_entry);*/
+                            console.log('Image Match Found'.blue);
+                            console.log(response.images[0].id);
+                            /*request.put(settings.endpoints.cba , {body : { "attach_image_id" : ""}, json : true, headers : {'Authorization' : settings.access_token}}, function (error, response, body) {//TODO: This should eventually be a JSON raw body not a form
+                                console.log(error);
+                                console.log(body);
+                                callback();
+                            });*/
                             callback();
                         }
 
