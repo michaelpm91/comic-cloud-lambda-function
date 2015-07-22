@@ -13,6 +13,7 @@ var getFileType = require('file-type');
 var crypto = require('crypto');
 var uuid = require('uuid');
 var fs = require('fs');
+require('pro-array');
 
 
 var settings = {
@@ -47,7 +48,7 @@ exports.handler = function(event, context) {
                 body = JSON.parse(body);
                 if (!error && response.statusCode == 200) {
                     settings.access_token = body.access_token;
-                    console.log("Client successfully authenticated".green)
+                    console.log("Client successfully authenticated".green);
                     callback();
                 }else{
                     context.fail(("Client authentication failed: " + JSON.parse(error)).red);
@@ -135,7 +136,6 @@ exports.handler = function(event, context) {
                                     context.fail(("Error getting file: " + JSON.stringify(err)).red);
                                 } else {
                                     console.log("Image successfully uploaded".green);
-
                                     var upload_url = settings.endpoints.s3_base + "/"+ user_images_uploads + "/" +user_images_uploads_key; //TODO: This ideally needs to something returned from S3's upload
                                     var new_image_request = {
                                         "image_slug" : user_images_uploads_key_without_ext,
@@ -149,34 +149,57 @@ exports.handler = function(event, context) {
                                         console.log(body);
                                         callback();
                                     });
-
                                 }
-
                             });
 
-                        }else{
+                        }else{//Attach ID to related archive.
                             console.log('Image Match Found'.blue);
-                            console.log(response.images[0].id);
-                            /*request.put(settings.endpoints.cba , {body : { "attach_image_id" : ""}, json : true, headers : {'Authorization' : settings.access_token}}, function (error, response, body) {//TODO: This should eventually be a JSON raw body not a form
-                                console.log(error);
-                                console.log(body);
-                                callback();
-                            });*/
-                            callback();
+                            var attachImageId = response.images[0].id;
+                            request.put(settings.endpoints.cba + "/" + cba_id , {body : { "attach_image_id" : attachImageId}, json : true, headers : {'Authorization' : settings.access_token}}, function (error, response, body) {//TODO: This should eventually be a JSON raw body not a form
+                                if (!error && response.statusCode == 204) {
+                                    console.log(("Image ID: " + attachImageId + " success attached to " + cba_id).green);
+                                    callback();
+                                }else{
+                                    context.fail(("API Request Error: " + JSON.stringify(error)).red);
+                                }
+                            });
                         }
 
 
                     }
                 ], function(err, result){
+                    pages[basename] = user_images_uploads_key_without_ext;
                     callback();
                 });
             }, function(err){
                 callback(null, pages);
 
             });
+        },
+        function(pages, callback){
+            console.log('Ready to sort.'.rainbow);
+
+            pages.natsort();
+            var pages_final = [];
+            for (var items in pages){
+                pages_final.push(pages[items]);
+            }
+
+            pages_final.unshift('presentation_value');
+            delete pages_final[0];
+            pages_final = pages_final.toObject();
+
+            console.log(JSON.stringify(pages_final).rainbow);
+
+            /*request.put(settings.endpoints.cba + "/" + cba_id , {body : { "attach_image_id" : response.images[0].id}, json : true, headers : {'Authorization' : settings.access_token}}, function (error, response, body) {//TODO: This should eventually be a JSON raw body not a form
+                console.log(error);
+                console.log(body);
+                callback();
+            });*/
         }
     ],
     function(err, results){
+        //TODO: Post error to DB if fails and write to error log
         context.succeed('Comic Book Archive successfully processed.'.green);
 
     });
