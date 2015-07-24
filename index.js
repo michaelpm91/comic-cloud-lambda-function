@@ -89,10 +89,9 @@ exports.handler = function(event, context) {
                     console.log('Unaccepted File type \'' + fileExt + '\' found.');
                     return callback();
                 }
-
                 var fileType = getFileType(file.asNodeBuffer());
                 var basename = path.basename(filename, path.extname(filename));
-                var fileSize = 1;//TODO: File size check.
+                var fileSize = file.asNodeBuffer().length;
 
                 var user_images_uploads = process.env.AWS_S3_Images;
                 var user_images_uploads_key_without_ext = uuid.v4();
@@ -110,7 +109,8 @@ exports.handler = function(event, context) {
                             if (error) {
                                 console.log("Error getting object " + user_upload_key + " from bucket " + user_upload_bucket +
                                 ".\nMake sure they exist and your bucket is in the same region as this function.".red);
-                                context.fail("Error getting file: " + JSON.stringify(err).red);
+                                //context.fail("Error getting file: " + JSON.stringify(err).red);
+                                callback({error : "Error getting file: " + JSON.stringify(error)});
                             }else {
                                 callback(null, JSON.parse(body))
                             }
@@ -124,7 +124,7 @@ exports.handler = function(event, context) {
 
                             var params = {
                                 Bucket: user_images_uploads,
-                                Key: user_images_uploads_key,
+                                Key: user_images_uploads_key, //TODO: Consider changing key of upload to be more secure
                                 Body: user_images_uploads_body,
                                 ACL: 'public-read' //TODO: Change to 'authenticated-read' on production. Also maybe extract to variable
                             };
@@ -133,7 +133,8 @@ exports.handler = function(event, context) {
                                 if (err) {
                                     console.log(("Error putting object " + user_images_uploads_key + " into bucket " + user_images_uploads +
                                     ".\nMake sure they exist and your bucket is in the same region as this function.").red);
-                                    context.fail(("Error getting file: " + JSON.stringify(err)).red);
+                                    //context.fail(("Error getting file: " + JSON.stringify(err)).red);
+                                    callback({error : "Error getting file: " + JSON.stringify(err)});
                                 } else {
                                     console.log("Image successfully uploaded".green);
                                     var upload_url = settings.endpoints.s3_base + "/"+ user_images_uploads + "/" +user_images_uploads_key; //TODO: This ideally needs to something returned from S3's upload
@@ -141,13 +142,17 @@ exports.handler = function(event, context) {
                                         "image_slug" : user_images_uploads_key_without_ext,
                                         "image_hash" : fileHash,
                                         "image_url" : upload_url,
-                                        "image_size" : 1,
+                                        "image_size" : fileSize,
                                         "related_comic_book_archive_id" : cba_id
                                     };
                                     request.post(settings.endpoints.images , {body : new_image_request, json : true, headers : {'Authorization' : settings.access_token}}, function (error, response, body) {//TODO: This should eventually be a JSON raw body not a form
-                                        console.log(error);
-                                        console.log(body);
-                                        callback();
+                                        if (!error && response.statusCode == 201) {
+                                            //body = JSON.parse(body);
+                                            console.log(("Image Record Succesfully added at Image ID: " + body.images[0].id).green);
+                                            callback();
+                                        }else{
+                                            callback({error : "API Request Error: " + JSON.stringify(error)});
+                                        };
                                     });
                                 }
                             });
@@ -160,7 +165,7 @@ exports.handler = function(event, context) {
                                     console.log(("Image ID: " + attachImageId + " success attached to " + cba_id).green);
                                     callback();
                                 }else{
-                                    context.fail(("API Request Error: " + JSON.stringify(error)).red);
+                                    callback({error : "API Request Error: " + JSON.stringify(error)});
                                 }
                             });
                         }
@@ -168,11 +173,19 @@ exports.handler = function(event, context) {
 
                     }
                 ], function(err, result){
-                    pages[basename] = user_images_uploads_key_without_ext;
-                    callback();
+                    if(err) {
+                        callback(err);
+                    }else {
+                        pages[basename] = user_images_uploads_key_without_ext;
+                        callback();
+                    }
                 });
             }, function(err){
-                callback(null, pages);
+                if(err) {
+                    callback(err);
+                }else {
+                    callback(null, pages);
+                }
 
             });
         },
@@ -189,19 +202,34 @@ exports.handler = function(event, context) {
             delete pages_final[0];
             pages_final = pages_final.toObject();
 
-            console.log(JSON.stringify(pages_final).rainbow);
+            //console.log(JSON.stringify(pages_final).rainbow);
 
-            /*request.put(settings.endpoints.cba + "/" + cba_id , {body : { "attach_image_id" : response.images[0].id}, json : true, headers : {'Authorization' : settings.access_token}}, function (error, response, body) {//TODO: This should eventually be a JSON raw body not a form
-                console.log(error);
-                console.log(body);
-                callback();
-            });*/
+            request.put(settings.endpoints.cba + "/" + cba_id , {body : { "comic_book_archive_status" : 1, "comic_book_archive_contents" : pages_final}, json : true, headers : {'Authorization' : settings.access_token}}, function (error, response, body) {//TODO: This should eventually be a JSON raw body not a form
+                if (!error && response.statusCode == 204) {
+                    console.log(("Comic Book Archive Update Successful").green);
+                    callback();
+                }else{
+                    //context.fail(("API Request Error: " + JSON.stringify(error)).red);
+                    callback({error : "API Request Error: " + JSON.stringify(error)});
+                }
+            });
         }
     ],
     function(err, results){
         //TODO: Post error to DB if fails and write to error log
-        context.succeed('Comic Book Archive successfully processed.'.green);
-
+        if(err){
+            request.put(settings.endpoints.cba + "/" + cba_id , {body : { "comic_book_archive_status" : 2}, json : true, headers : {'Authorization' : settings.access_token}}, function (error, response, body) {
+                //console.log(body.green);
+                if (!error && response.statusCode == 204) {
+                    console.log(("Comic Book Archive Update Successful").green);
+                    context.fail("Error: "+  JSON.stringify(err));
+                }else{
+                    context.fail("Comic Book Archive Update Process Failed: " + error);
+                }
+            });
+        }else {
+            context.succeed('Comic Book Archive successfully processed.'.green);
+        }
     });
 
 };
