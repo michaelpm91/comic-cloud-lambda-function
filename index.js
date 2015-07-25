@@ -55,6 +55,22 @@ exports.handler = function(event, context) {
                 }
             });
         },
+        function(callback){
+            console.log("Checking Comic Book Archive Status".green);
+
+            request.get(settings.endpoints.cba + "/" + cba_id  ,{ headers : {'Authorization' : settings.access_token}}, function (error, response, body) {//TODO: This should eventually be a JSON raw body not a form
+                body = JSON.parse(body);
+                if (!error && response.statusCode == 200) {
+                    cba_status = body.comic_book_archive[0].comic_book_archive_status;
+                    if(cba_status == 1){
+                        callback({error : "Comic Book Archive Already Successfully Processed"});
+                    }
+                    callback();
+                }else if(response.statusCode == 404){
+                    callback({error : "Comic Book Archive Not Found"});
+                }
+            });
+        },
         function(callback) {//2 - Download Archive
             console.log("Retrieving file".green);
             s3.getObject({Bucket: user_upload_bucket, Key: user_upload_key}, function(err, data) {//Retrieve Upload
