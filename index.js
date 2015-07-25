@@ -28,7 +28,7 @@ exports.handler = function(event, context) {
             s3_base : process.env.S3_BASE_URL
         },
         param: {
-            grant_type : process.env[event.environment + '_GRANT_TYPE'],
+            grant_type : process.env['GRANT_TYPE'],
             client_id : process.env[event.environment + '_CLIENT_ID'],
             client_secret : process.env[event.environment + '_CLIENT_SECRET'],
             scope: process.env[event.environment + '_API_SCOPE']
