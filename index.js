@@ -105,7 +105,7 @@ exports.handler = function(event, context) {
                 var basename = path.basename(filename, path.extname(filename));
                 var fileSize = file.asNodeBuffer().length;
 
-                var user_images_uploads = process.env.AWS_S3_Images;
+                var user_images_uploads = process.env[ event.environment + 'AWS_S3_Images'];
                 var user_images_uploads_key_without_ext = uuid.v4();
                 var user_images_uploads_key = user_images_uploads_key_without_ext + "." + fileExt;
                 var user_images_uploads_body = file.asNodeBuffer();
