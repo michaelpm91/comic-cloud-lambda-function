@@ -14,30 +14,30 @@ var crypto = require('crypto');
 var uuid = require('uuid');
 var fs = require('fs');
 require('pro-array');
-
-
-var settings = {
-    endpoints : {
-        auth : "http://api.local.comiccloud.io/v0.1/oauth/access_token",
-        images : "http://api.local.comiccloud.io/v0.1/images",
-        cba : "http://api.local.comiccloud.io/v0.1/comicbookarchives",
-        s3_base : "https://s3.amazonaws.com"
-    },
-    param: {
-        grant_type : "client_credentials",//TODO: Move to environment variables
-        client_id : "test_processor_id",
-        client_secret : "test_processor_secret",
-        scope: "processor"
-    },
-    access_token : null
-};
+var http = require('http');
 
 exports.handler = function(event, context) {
 
     console.log( "Running index.handler" );
 
-    var user_upload_bucket = process.env.AWS_S3_Uploads;//event.bucket_name;//TODO:Change this back before posting!
-    var user_upload_key = event.file_name;
+    var settings = {
+        endpoints : {
+            auth :  event.api_version + "/oauth/access_token",
+            images : event.api_version + "/images",
+            cba : event.api_version + "/comicbookarchives",
+            s3_base : process.env.S3_BASE_URL
+        },
+        param: {
+            grant_type : "client_credentials",//TODO: Move to environment variables
+            client_id : "test_processor_id",
+            client_secret : "test_processor_secret",
+            scope: "processor"
+        },
+        access_token : null
+    };
+
+    //var user_upload_bucket = process.env.AWS_S3_Uploads;//event.bucket_name;//TODO:Change this back before posting!
+    //var user_upload_key = event.file_name;
     var cba_id = event.cba_id;
 
     async.waterfall([
@@ -73,21 +73,19 @@ exports.handler = function(event, context) {
         },
         function(callback) {//2 - Download Archive
             console.log("Retrieving file".green);
-            s3.getObject({Bucket: user_upload_bucket, Key: user_upload_key}, function(err, data) {//Retrieve Upload
-                if (err) {
-                    console.log("Error getting object " + user_upload_key + " from bucket " + user_upload_bucket +
-                    ".\nMake sure they exist and your bucket is in the same region as this function.".red);
-                    context.fail("Error getting file: " + JSON.stringify(err).red);
-                } else {
+            request.get(event.fileLocation, {encoding: null}, function(error, response, body) {
+                if (!error && response.statusCode == 200) {
                     console.log('File successfully retrieved.');
-                    callback(null, data);
+                    callback(null, body);
+                }else{
+                    context.fail("Error getting file: " + JSON.stringify(error).red);
                 }
             });
         },
         function(filestream, callback){//3 - Process Archive
             console.log('Processing Comic Book Archive'.green);
 
-            var zip = new JSZip(filestream.Body);//Load archive into JSZip
+            var zip = new JSZip(filestream);//Load archive into JSZip
 
             var pages = [];
 
@@ -123,9 +121,6 @@ exports.handler = function(event, context) {
                     function(callback){//Check if image exists
                         request.get(settings.endpoints.images + "?image_hash=" + fileHash, { headers : {'Authorization' : settings.access_token}}, function (error, response, body) {
                             if (error) {
-                                console.log("Error getting object " + user_upload_key + " from bucket " + user_upload_bucket +
-                                ".\nMake sure they exist and your bucket is in the same region as this function.".red);
-                                //context.fail("Error getting file: " + JSON.stringify(err).red);
                                 callback({error : "Error getting file: " + JSON.stringify(error)});
                             }else {
                                 callback(null, JSON.parse(body))

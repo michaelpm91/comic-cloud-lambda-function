@@ -1,5 +1,6 @@
 {
-  "bucket_name": "changeme",
-  "file_name": "10cffa76-a8a8-4bd2-aef6-c4a92ab82d24.cbz",
+  "api_version" : "http://api.local.comiccloud.io/v0.1",
+  "environment" : "local",
+  "fileLocation" : "https://github.com/kidshenlong/Comic-Cloud-API/raw/master/storage/test%20files/test-comic-6-pages.cbz",
   "cba_id": 11
 }
