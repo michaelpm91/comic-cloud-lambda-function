@@ -2,6 +2,7 @@
  * Created by Michael on 16/07/15.
  */
 console.log('Loading function');
+require('dotenv').load();
 var colors = require('colors');
 var request = require('request');
 var async = require('async');
@@ -22,9 +23,9 @@ exports.handler = function(event, context) {
 
     var settings = {
         endpoints : {
-            auth :  event.api_version + "/oauth/access_token",
-            images : event.api_version + "/images",
-            cba : event.api_version + "/comicbookarchives",
+            auth :  event.api_base + "/oauth/access_token",
+            images : event.api_base + event.api_version + "/images",
+            cba : event.api_base + event.api_version + "/comicbookarchives",
             s3_base : process.env.S3_BASE_URL
         },
         param: {
@@ -36,7 +37,7 @@ exports.handler = function(event, context) {
         access_token : null
     };
 
-   var cba_id = event.cba_id;
+    var cba_id = event.cba_id;
 
     async.waterfall([
         function(callback) {//1 - Authorise
@@ -105,7 +106,7 @@ exports.handler = function(event, context) {
                 var basename = path.basename(filename, path.extname(filename));
                 var fileSize = file.asNodeBuffer().length;
 
-                var user_images_uploads = process.env[ event.environment + 'AWS_S3_Images'];
+                var user_images_uploads = process.env[event.environment + '_AWS_S3_Images'];
                 var user_images_uploads_key_without_ext = uuid.v4();
                 var user_images_uploads_key = user_images_uploads_key_without_ext + "." + fileExt;
                 var user_images_uploads_body = file.asNodeBuffer();

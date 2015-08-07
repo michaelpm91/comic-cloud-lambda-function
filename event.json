@@ -1,6 +1,7 @@
 {
-  "api_version" : "http://api.local.comiccloud.io/v0.1",
-  "environment" : "local",
+  "api_base" : "http://api.dev.comiccloud.io/",
+  "api_version" : "v0.1",
+  "environment" : "develop",
   "fileLocation" : "https://github.com/kidshenlong/Comic-Cloud-API/raw/master/storage/test%20files/test-comic-6-pages.cbz",
-  "cba_id": 11
+  "cba_id": 8388
 }
